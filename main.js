@@ -34,7 +34,7 @@ const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(10, 10, 5);
 scene.add(directionalLight);
 
-// Setup Cannon-es physics world with initial gravity (user can control via UI)
+// Setup Cannon-es physics world
 const world = new World({
   gravity: new Vec3(0, -9.82, 0)
 });
@@ -110,29 +110,6 @@ function createSphere({ radius = 0.5, position = { x: 0, y: 5, z: 0 }, color = 0
   });
 }
 
-// Generate random objects for added realism in simulation
-let spawnInterval = 1500; // in milliseconds
-function spawnRandomObject() {
-  const type = Math.random() > 0.5 ? 'box' : 'sphere';
-  const x = (Math.random() - 0.5) * 8;
-  const y = 5 + Math.random() * 2;
-  const z = (Math.random() - 0.5) * 8;
-  if (type === 'box') {
-    const width = 0.5 + Math.random() * 1;
-    const height = 0.5 + Math.random() * 1;
-    const depth = 0.5 + Math.random() * 1;
-    const color = Math.random() * 0xffffff;
-    createBox({ width, height, depth, position: { x, y, z }, color });
-  } else {
-    const radius = 0.3 + Math.random() * 0.5;
-    const color = Math.random() * 0xffffff;
-    createSphere({ radius, position: { x, y, z }, color });
-  }
-}
-
-// Start spawning objects (the interval can be adjusted via the control panel)
-let spawnIntervalID = setInterval(spawnRandomObject, spawnInterval);
-
 // Animation loop
 const clock = new THREE.Clock();
 function animate() {
@@ -165,7 +142,8 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// User Interface: Allowing more creative control over the scene
+// UI Controls
+
 // Gravity control
 const gravitySlider = document.getElementById('gravity-slider');
 if (gravitySlider) {
@@ -176,21 +154,39 @@ if (gravitySlider) {
   });
 }
 
-// Spawn interval control
-const spawnIntervalInput = document.getElementById('spawn-interval');
-if (spawnIntervalInput) {
-  spawnIntervalInput.addEventListener('change', (event) => {
-    const newInterval = parseInt(event.target.value, 10);
-    clearInterval(spawnIntervalID);
-    spawnInterval = newInterval;
-    spawnIntervalID = setInterval(spawnRandomObject, spawnInterval);
-  });
-}
+// Toggle properties based on object type selection
+const objectTypeSelect = document.getElementById('object-type');
+const boxProps = document.getElementById('box-properties');
+const sphereProps = document.getElementById('sphere-properties');
+objectTypeSelect.addEventListener('change', (event) => {
+  const value = event.target.value;
+  if (value === 'box') {
+    boxProps.style.display = 'block';
+    sphereProps.style.display = 'none';
+  } else {
+    boxProps.style.display = 'none';
+    sphereProps.style.display = 'block';
+  }
+});
 
-// Spawn object button for manual control
-const spawnButton = document.getElementById('spawn-button');
-if (spawnButton) {
-  spawnButton.addEventListener('click', () => {
-    spawnRandomObject();
-  });
-}
+// Add Object button: creates an object based on user defined properties
+const spawnObjectButton = document.getElementById('spawn-object-button');
+spawnObjectButton.addEventListener('click', () => {
+  const objectType = objectTypeSelect.value;
+  const posX = parseFloat(document.getElementById('position-x').value);
+  const posY = parseFloat(document.getElementById('position-y').value);
+  const posZ = parseFloat(document.getElementById('position-z').value);
+  // Convert color value from "#rrggbb" to hexadecimal number (0xrrggbb)
+  const colorHex = document.getElementById('object-color').value;
+  const color = parseInt("0x" + colorHex.slice(1));
+
+  if (objectType === 'box') {
+    const width = parseFloat(document.getElementById('width').value);
+    const height = parseFloat(document.getElementById('height').value);
+    const depth = parseFloat(document.getElementById('depth').value);
+    createBox({ width, height, depth, position: { x: posX, y: posY, z: posZ }, color });
+  } else if (objectType === 'sphere') {
+    const radius = parseFloat(document.getElementById('radius').value);
+    createSphere({ radius, position: { x: posX, y: posY, z: posZ }, color });
+  }
+});
