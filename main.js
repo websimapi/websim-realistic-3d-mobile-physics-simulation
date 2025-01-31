@@ -198,6 +198,8 @@ function updatePlayerBody(newRadius, newMass) {
 // --- Player Collision Handling ---
 // When player's ball collides, check if the other object qualifies to be collected.
 playerBody.addEventListener('collide', (event) => {
+  // Guard against undefined contact information.
+  if (!event.contact || !event.contact.bi || !event.contact.bj) return;
   const contact = event.contact;
   // Identify the collided body (the one that isn't the player)
   let otherBody = contact.bi.id === playerBody.id ? contact.bj : contact.bi;
