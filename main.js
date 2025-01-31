@@ -16,13 +16,6 @@ let objectsToUpdate = [];
 let playerMesh, playerBody;
 let playerVolume, playerMass, playerRadius;
 
-// An accumulator for fixed time step physics simulation.
-let accumulator = 0;
-
-// Constants
-const GROUND_SIZE = 40;
-const NUM_OBJECTS = 50; // Number of random city objects
-
 // --- Setup Three.js Scene ---
 scene = new THREE.Scene();
 scene.background = new THREE.Color(0x202124);
@@ -52,7 +45,7 @@ world = new World({
   gravity: new Vec3(0, -9.82, 0)
 });
 world.broadphase = new NaiveBroadphase();
-// Setting solver iterations if solver is defined (cannon-es usually provides a default solver)
+// Setting solver iterations if solver is defined
 if (world.solver) {
   world.solver.iterations = 10;
 }
@@ -68,6 +61,7 @@ scene.add(directionalLight);
 // --- Create Ground ---
 (function createGround() {
   // Cannon ground body
+  const GROUND_SIZE = 40;
   const groundShape = new Box(new Vec3(GROUND_SIZE * 0.5, 0.2, GROUND_SIZE * 0.5));
   const groundBody = new Body({
     mass: 0, // static
@@ -75,7 +69,7 @@ scene.add(directionalLight);
     shape: groundShape
   });
   world.addBody(groundBody);
-  
+
   // Three.js ground mesh
   const groundGeometry = new THREE.BoxGeometry(GROUND_SIZE, 0.4, GROUND_SIZE);
   const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
@@ -86,15 +80,17 @@ scene.add(directionalLight);
 })();
 
 // --- Create City Objects (Collectable Items) ---
+const NUM_OBJECTS = 50; // Number of random city objects
 function createCityObject() {
   // Randomly choose between box and sphere
   const isSphere = Math.random() > 0.5;
   let mesh, body, size, volume, mass;
   // Random position on the ground (avoid center a bit)
+  const GROUND_SIZE = 40;
   const posX = (Math.random() - 0.5) * (GROUND_SIZE - 4);
   const posZ = (Math.random() - 0.5) * (GROUND_SIZE - 4);
   const posY = 1; // slight elevation
-  
+
   if (isSphere) {
     // Sphere object
     const radius = Math.random() * 0.5 + 0.2; // between 0.2 and 0.7
@@ -105,7 +101,7 @@ function createCityObject() {
     const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
     mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(posX, posY, posZ);
-    
+
     body = new Body({
       mass: mass,
       position: new Vec3(posX, posY, posZ),
@@ -123,7 +119,7 @@ function createCityObject() {
     const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
     mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(posX, posY, posZ);
-    
+
     body = new Body({
       mass: mass,
       position: new Vec3(posX, posY, posZ),
@@ -137,7 +133,7 @@ function createCityObject() {
     volume: volume,   // volume of the object
     collected: false  // flag to prevent multiple collection
   };
-  
+
   world.addBody(body);
   scene.add(mesh);
   objectsToUpdate.push({ mesh, body });
@@ -161,7 +157,7 @@ function createPlayerBall() {
   // Start a bit above ground
   playerMesh.position.set(0, playerRadius + 0.1, 0);
   scene.add(playerMesh);
-  
+
   playerBody = new Body({
     mass: playerMass,
     position: new Vec3(0, playerRadius + 0.1, 0),
@@ -178,10 +174,10 @@ function updatePlayerBody(newRadius, newMass) {
   const oldBody = playerBody;
   const oldPos = oldBody.position.clone();
   const oldVel = oldBody.velocity.clone();
-  
+
   // Remove the old body
   world.removeBody(oldBody);
-  
+
   // Create new body with updated radius and mass, retaining position and velocity
   const newBody = new Body({
     mass: newMass,
@@ -189,15 +185,15 @@ function updatePlayerBody(newRadius, newMass) {
     shape: new Sphere(newRadius)
   });
   newBody.velocity.copy(oldVel);
-  
+
   world.addBody(newBody);
   playerBody = newBody;
-  
+
   // Update visual mesh geometry by scaling (for simplicity, scale the mesh)
   // Note: In a more rigorous approach, we could replace geometry entirely.
   const scaleFactor = newRadius / playerRadius;
   playerMesh.scale.multiplyScalar(scaleFactor);
-  
+
   // Update global playerRadius, playerMass, and playerVolume
   playerRadius = newRadius;
   playerMass = newMass;
@@ -210,14 +206,14 @@ playerBody.addEventListener('collide', (event) => {
   // Identify the collided body (the one that isn't the player)
   const contact = event.contact;
   let otherBody = contact.bi.id === playerBody.id ? contact.bj : contact.bi;
-  
+
   // Only process if the otherBody is marked as collectable and not already collected
   if (otherBody.userData && otherBody.userData.collectable && !otherBody.userData.collected) {
     // Check if object's size and mass is smaller than player's ball (simple criteria)
     if (otherBody.userData.size < playerRadius && otherBody.mass < playerMass) {
       // Mark as collected so it's only processed once
       otherBody.userData.collected = true;
-      
+
       // Find the associated mesh and remove from physics simulation
       const updateIndex = objectsToUpdate.findIndex(obj => obj.body === otherBody);
       if (updateIndex !== -1) {
@@ -232,7 +228,7 @@ playerBody.addEventListener('collide', (event) => {
         const worldPos = obj.mesh.position.clone();
         playerMesh.worldToLocal(worldPos);
         obj.mesh.position.copy(worldPos);
-        
+
         // Increase player's ball size and mass based on the object's volume and mass
         const collectedVolume = otherBody.userData.volume;
         const newVolume = playerVolume + collectedVolume;
@@ -240,7 +236,7 @@ playerBody.addEventListener('collide', (event) => {
         const newRadius = Math.cbrt(newVolume * (3 / (4 * Math.PI)));
         const newMass = playerMass + otherBody.mass;
         playerVolume = newVolume;
-        
+
         // Update player's physics body and mesh accordingly
         updatePlayerBody(newRadius, newMass);
       }
@@ -275,7 +271,7 @@ function onSwipeEnd(event) {
   // Apply impulse in the XZ plane. Note: In screen space, Y increases downward so we invert it.
   const impulse = new Vec3(deltaX * impulseFactor, 0, -deltaY * impulseFactor);
   playerBody.applyImpulse(impulse, playerBody.position);
-  
+
   swipeStart = null;
   swipeEnd = null;
 }
@@ -287,27 +283,22 @@ renderer.domElement.addEventListener('mouseup', onSwipeEnd, false);
 
 // --- Animation Loop ---
 const clock = new THREE.Clock();
+const fixedTimeStep = 1 / 60;
 function animate() {
   const deltaTime = clock.getDelta();
-  
-  // Use fixed time step integration to avoid errors in cannon-es step
-  const fixedTimeStep = 1 / 60;
-  accumulator += deltaTime;
-  while (accumulator >= fixedTimeStep) {
-    world.step(fixedTimeStep);
-    accumulator -= fixedTimeStep;
-  }
-  
+  // Use world.step with deltaTime and maxSubSteps for stable simulation
+  world.step(fixedTimeStep, deltaTime, 3);
+
   // Sync meshes with their corresponding physics bodies for city objects
   objectsToUpdate.forEach(obj => {
     obj.mesh.position.copy(obj.body.position);
     obj.mesh.quaternion.copy(obj.body.quaternion);
   });
-  
+
   // Sync player's ball mesh with its physics body position and quaternion.
   playerMesh.position.copy(playerBody.position);
   playerMesh.quaternion.copy(playerBody.quaternion);
-  
+
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
