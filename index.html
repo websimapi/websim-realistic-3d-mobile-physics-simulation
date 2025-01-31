@@ -2,7 +2,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Realistic 3D Mobile Physics Simulation</title>
+    <title>Katamari Physics Game</title>
     <link rel="stylesheet" href="style.css" />
     <!-- Import map to resolve bare module specifiers like "three" -->
     <script type="importmap">
@@ -14,43 +14,9 @@
     </script>
   </head>
   <body>
-    <div id="control-panel">
-      <h3>Scene Controls</h3>
-      <label for="gravity-slider">Gravity (m/s²)</label>
-      <input id="gravity-slider" type="range" min="0" max="20" value="9.82" step="0.1" />
-
-      <h3>Create Object</h3>
-      <label for="object-type">Object Type</label>
-      <select id="object-type">
-        <option value="box">Box</option>
-        <option value="sphere">Sphere</option>
-      </select>
-
-      <div id="box-properties">
-        <label for="width">Width</label>
-        <input id="width" type="number" value="1" step="0.1" />
-        <label for="height">Height</label>
-        <input id="height" type="number" value="1" step="0.1" />
-        <label for="depth">Depth</label>
-        <input id="depth" type="number" value="1" step="0.1" />
-      </div>
-
-      <div id="sphere-properties" style="display: none;">
-        <label for="radius">Radius</label>
-        <input id="radius" type="number" value="0.5" step="0.1" />
-      </div>
-
-      <label for="position-x">Position X</label>
-      <input id="position-x" type="number" value="0" step="0.1" />
-      <label for="position-y">Position Y</label>
-      <input id="position-y" type="number" value="5" step="0.1" />
-      <label for="position-z">Position Z</label>
-      <input id="position-z" type="number" value="0" step="0.1" />
-
-      <label for="object-color">Color</label>
-      <input id="object-color" type="color" value="#ff0055" />
-
-      <button id="spawn-object-button">Add Object</button>
+    <!-- An overlay instruction panel -->
+    <div id="info">
+      <p>Swipe (or drag) anywhere to roll your ball</p>
     </div>
     <!-- The simulation canvas will be injected into the body by Three.js -->
     <script type="module" src="main.js"></script>
