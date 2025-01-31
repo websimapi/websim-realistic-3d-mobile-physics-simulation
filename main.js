@@ -1,6 +1,6 @@
 import * as THREE from 'https://unpkg.com/three@0.150.0/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.150.0/examples/jsm/controls/OrbitControls.js';
-import { World, Body, Box, Sphere, Vec3 } from 'https://cdn.skypack.dev/cannon-es';
+import { World, Body, Box, Sphere, Vec3, NaiveBroadphase } from 'https://cdn.skypack.dev/cannon-es';
 
 // Setup Three.js scene
 const scene = new THREE.Scene();
@@ -38,7 +38,7 @@ scene.add(directionalLight);
 const world = new World({
   gravity: new Vec3(0, -9.82, 0)
 });
-world.broadphase = new CANNON.NaiveBroadphase();
+world.broadphase = new NaiveBroadphase();
 world.solver.iterations = 10;
 
 // Keep track of objects to sync Three.js mesh with Cannon body

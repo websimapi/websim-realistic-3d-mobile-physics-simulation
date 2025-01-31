@@ -4,6 +4,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Realistic 3D Mobile Physics Simulation</title>
     <link rel="stylesheet" href="style.css" />
+    <!-- Import map to resolve bare module specifiers like "three" -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.150.0/build/three.module.js"
+      }
+    }
+    </script>
   </head>
   <body>
     <!-- The simulation canvas will be injected into the body by Three.js -->
