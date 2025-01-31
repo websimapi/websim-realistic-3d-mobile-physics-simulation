@@ -1,5 +1,4 @@
 import * as THREE from 'https://unpkg.com/three@0.150.0/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.150.0/examples/jsm/controls/OrbitControls.js';
 import {
   World,
   Body,
@@ -10,11 +9,18 @@ import {
 } from 'https://cdn.skypack.dev/cannon-es';
 
 // --- Global Variables ---
-let scene, camera, renderer, controls;
+let scene, camera, renderer;
 let world;
 let objectsToUpdate = [];
 let playerMesh, playerBody;
 let playerVolume, playerMass, playerRadius;
+
+// Global variable to store last movement direction for camera follow
+const lastDirection = new THREE.Vector3(0, 0, -1);
+
+// Constants
+const GROUND_SIZE = 40;
+const NUM_OBJECTS = 50; // Number of random city objects
 
 // --- Setup Three.js Scene ---
 scene = new THREE.Scene();
@@ -27,6 +33,7 @@ camera = new THREE.PerspectiveCamera(
   0.1,
   200
 );
+// Initial camera position will be updated after physics step.
 camera.position.set(0, 15, 25);
 
 // Setup renderer
@@ -35,20 +42,12 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// OrbitControls (for debug and mobile-friendly navigation)
-controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
-
 // --- Setup Cannon-es Physics World ---
 world = new World({
   gravity: new Vec3(0, -9.82, 0)
 });
 world.broadphase = new NaiveBroadphase();
-// Setting solver iterations if solver is defined
-if (world.solver) {
-  world.solver.iterations = 10;
-}
+world.solver.iterations = 10;
 
 // --- Lights ---
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -61,7 +60,6 @@ scene.add(directionalLight);
 // --- Create Ground ---
 (function createGround() {
   // Cannon ground body
-  const GROUND_SIZE = 40;
   const groundShape = new Box(new Vec3(GROUND_SIZE * 0.5, 0.2, GROUND_SIZE * 0.5));
   const groundBody = new Body({
     mass: 0, // static
@@ -69,7 +67,7 @@ scene.add(directionalLight);
     shape: groundShape
   });
   world.addBody(groundBody);
-
+  
   // Three.js ground mesh
   const groundGeometry = new THREE.BoxGeometry(GROUND_SIZE, 0.4, GROUND_SIZE);
   const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
@@ -80,17 +78,15 @@ scene.add(directionalLight);
 })();
 
 // --- Create City Objects (Collectable Items) ---
-const NUM_OBJECTS = 50; // Number of random city objects
 function createCityObject() {
   // Randomly choose between box and sphere
   const isSphere = Math.random() > 0.5;
   let mesh, body, size, volume, mass;
   // Random position on the ground (avoid center a bit)
-  const GROUND_SIZE = 40;
   const posX = (Math.random() - 0.5) * (GROUND_SIZE - 4);
   const posZ = (Math.random() - 0.5) * (GROUND_SIZE - 4);
   const posY = 1; // slight elevation
-
+  
   if (isSphere) {
     // Sphere object
     const radius = Math.random() * 0.5 + 0.2; // between 0.2 and 0.7
@@ -101,7 +97,7 @@ function createCityObject() {
     const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
     mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(posX, posY, posZ);
-
+    
     body = new Body({
       mass: mass,
       position: new Vec3(posX, posY, posZ),
@@ -119,7 +115,7 @@ function createCityObject() {
     const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
     mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(posX, posY, posZ);
-
+    
     body = new Body({
       mass: mass,
       position: new Vec3(posX, posY, posZ),
@@ -133,7 +129,7 @@ function createCityObject() {
     volume: volume,   // volume of the object
     collected: false  // flag to prevent multiple collection
   };
-
+  
   world.addBody(body);
   scene.add(mesh);
   objectsToUpdate.push({ mesh, body });
@@ -157,7 +153,7 @@ function createPlayerBall() {
   // Start a bit above ground
   playerMesh.position.set(0, playerRadius + 0.1, 0);
   scene.add(playerMesh);
-
+  
   playerBody = new Body({
     mass: playerMass,
     position: new Vec3(0, playerRadius + 0.1, 0),
@@ -174,10 +170,10 @@ function updatePlayerBody(newRadius, newMass) {
   const oldBody = playerBody;
   const oldPos = oldBody.position.clone();
   const oldVel = oldBody.velocity.clone();
-
+  
   // Remove the old body
   world.removeBody(oldBody);
-
+  
   // Create new body with updated radius and mass, retaining position and velocity
   const newBody = new Body({
     mass: newMass,
@@ -185,15 +181,14 @@ function updatePlayerBody(newRadius, newMass) {
     shape: new Sphere(newRadius)
   });
   newBody.velocity.copy(oldVel);
-
+  
   world.addBody(newBody);
   playerBody = newBody;
-
+  
   // Update visual mesh geometry by scaling (for simplicity, scale the mesh)
-  // Note: In a more rigorous approach, we could replace geometry entirely.
   const scaleFactor = newRadius / playerRadius;
   playerMesh.scale.multiplyScalar(scaleFactor);
-
+  
   // Update global playerRadius, playerMass, and playerVolume
   playerRadius = newRadius;
   playerMass = newMass;
@@ -203,32 +198,35 @@ function updatePlayerBody(newRadius, newMass) {
 // --- Player Collision Handling ---
 // When player's ball collides, check if the other object qualifies to be collected.
 playerBody.addEventListener('collide', (event) => {
-  // Identify the collided body (the one that isn't the player)
   const contact = event.contact;
+  // Identify the collided body (the one that isn't the player)
   let otherBody = contact.bi.id === playerBody.id ? contact.bj : contact.bi;
-
-  // Only process if the otherBody is marked as collectable and not already collected
-  if (otherBody.userData && otherBody.userData.collectable && !otherBody.userData.collected) {
-    // Check if object's size and mass is smaller than player's ball (simple criteria)
+  
+  // Ensure the collided body is valid and not already attached
+  if (
+    otherBody.userData &&
+    otherBody.userData.collectable &&
+    !otherBody.userData.collected
+  ) {
+    // Only collect if the other object is smaller than the player (by size and mass)
     if (otherBody.userData.size < playerRadius && otherBody.mass < playerMass) {
-      // Mark as collected so it's only processed once
+      // Mark as collected to prevent duplicate processing
       otherBody.userData.collected = true;
-
+      
       // Find the associated mesh and remove from physics simulation
       const updateIndex = objectsToUpdate.findIndex(obj => obj.body === otherBody);
       if (updateIndex !== -1) {
         const obj = objectsToUpdate[updateIndex];
-        // Remove physics body from world
+        // Remove physics body from world to avoid further collisions
         world.removeBody(otherBody);
         // Remove the object from the update list
         objectsToUpdate.splice(updateIndex, 1);
-        // Attach the mesh to the player ball visually so it sticks
-        playerMesh.add(obj.mesh);
-        // Adjust its position relative to the player mesh
+        // Convert object's world position into local space and attach to player mesh
         const worldPos = obj.mesh.position.clone();
         playerMesh.worldToLocal(worldPos);
         obj.mesh.position.copy(worldPos);
-
+        playerMesh.add(obj.mesh);
+        
         // Increase player's ball size and mass based on the object's volume and mass
         const collectedVolume = otherBody.userData.volume;
         const newVolume = playerVolume + collectedVolume;
@@ -236,7 +234,7 @@ playerBody.addEventListener('collide', (event) => {
         const newRadius = Math.cbrt(newVolume * (3 / (4 * Math.PI)));
         const newMass = playerMass + otherBody.mass;
         playerVolume = newVolume;
-
+        
         // Update player's physics body and mesh accordingly
         updatePlayerBody(newRadius, newMass);
       }
@@ -271,7 +269,7 @@ function onSwipeEnd(event) {
   // Apply impulse in the XZ plane. Note: In screen space, Y increases downward so we invert it.
   const impulse = new Vec3(deltaX * impulseFactor, 0, -deltaY * impulseFactor);
   playerBody.applyImpulse(impulse, playerBody.position);
-
+  
   swipeStart = null;
   swipeEnd = null;
 }
@@ -281,25 +279,49 @@ renderer.domElement.addEventListener('touchend', onSwipeEnd, false);
 renderer.domElement.addEventListener('mousedown', onSwipeStart, false);
 renderer.domElement.addEventListener('mouseup', onSwipeEnd, false);
 
+// --- Camera Follow Logic ---
+// Instead of orbit controls, the camera will follow the player in the direction of travel.
+function updateCamera() {
+  const trailDistance = playerRadius * 5 + 5; // distance behind the player; scales with size
+  const heightOffset = playerRadius * 2;        // height above the player
+  const playerPos = playerBody.position;
+  // Compute directional vector from player's velocity (ignore small movement)
+  let vel = new THREE.Vector3(playerBody.velocity.x, 0, playerBody.velocity.z);
+  if (vel.length() < 0.1) {
+    vel = lastDirection.clone();
+  } else {
+    vel.normalize();
+    lastDirection.copy(vel);
+  }
+  // Calculate camera offset behind the player
+  const cameraOffset = vel.clone().multiplyScalar(-trailDistance);
+  camera.position.set(
+    playerPos.x + cameraOffset.x,
+    playerPos.y + heightOffset,
+    playerPos.z + cameraOffset.z
+  );
+  camera.lookAt(new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z));
+}
+
 // --- Animation Loop ---
 const clock = new THREE.Clock();
-const fixedTimeStep = 1 / 60;
 function animate() {
   const deltaTime = clock.getDelta();
-  // Use world.step with deltaTime and maxSubSteps for stable simulation
-  world.step(fixedTimeStep, deltaTime, 3);
-
+  
+  // Step the physics simulation
+  world.step(1 / 60, deltaTime, 3);
+  
   // Sync meshes with their corresponding physics bodies for city objects
   objectsToUpdate.forEach(obj => {
     obj.mesh.position.copy(obj.body.position);
     obj.mesh.quaternion.copy(obj.body.quaternion);
   });
-
+  
   // Sync player's ball mesh with its physics body position and quaternion.
   playerMesh.position.copy(playerBody.position);
   playerMesh.quaternion.copy(playerBody.quaternion);
-
-  controls.update();
+  
+  updateCamera();
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
