@@ -34,7 +34,7 @@ const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(10, 10, 5);
 scene.add(directionalLight);
 
-// Setup Cannon-es physics world
+// Setup Cannon-es physics world with initial gravity (user can control via UI)
 const world = new World({
   gravity: new Vec3(0, -9.82, 0)
 });
@@ -76,7 +76,6 @@ function createBox({ width = 1, height = 1, depth = 1, position = { x: 0, y: 5, 
     mass: 1,
     position: new Vec3(position.x, position.y, position.z),
     shape: boxShape,
-    material: undefined,
   });
   world.addBody(boxBody);
 
@@ -111,7 +110,7 @@ function createSphere({ radius = 0.5, position = { x: 0, y: 5, z: 0 }, color = 0
   });
 }
 
-// Generate random objects periodically for added realism in simulation
+// Generate random objects for added realism in simulation
 let spawnInterval = 1500; // in milliseconds
 function spawnRandomObject() {
   const type = Math.random() > 0.5 ? 'box' : 'sphere';
@@ -131,8 +130,8 @@ function spawnRandomObject() {
   }
 }
 
-// Start spawning objects
-setInterval(spawnRandomObject, spawnInterval);
+// Start spawning objects (the interval can be adjusted via the control panel)
+let spawnIntervalID = setInterval(spawnRandomObject, spawnInterval);
 
 // Animation loop
 const clock = new THREE.Clock();
@@ -165,3 +164,33 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// User Interface: Allowing more creative control over the scene
+// Gravity control
+const gravitySlider = document.getElementById('gravity-slider');
+if (gravitySlider) {
+  gravitySlider.addEventListener('input', (event) => {
+    const value = parseFloat(event.target.value);
+    // Gravity acts in the negative y direction
+    world.gravity.set(0, -value, 0);
+  });
+}
+
+// Spawn interval control
+const spawnIntervalInput = document.getElementById('spawn-interval');
+if (spawnIntervalInput) {
+  spawnIntervalInput.addEventListener('change', (event) => {
+    const newInterval = parseInt(event.target.value, 10);
+    clearInterval(spawnIntervalID);
+    spawnInterval = newInterval;
+    spawnIntervalID = setInterval(spawnRandomObject, spawnInterval);
+  });
+}
+
+// Spawn object button for manual control
+const spawnButton = document.getElementById('spawn-button');
+if (spawnButton) {
+  spawnButton.addEventListener('click', () => {
+    spawnRandomObject();
+  });
+}
