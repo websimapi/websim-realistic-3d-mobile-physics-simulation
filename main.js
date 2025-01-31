@@ -16,6 +16,9 @@ let objectsToUpdate = [];
 let playerMesh, playerBody;
 let playerVolume, playerMass, playerRadius;
 
+// An accumulator for fixed time step physics simulation.
+let accumulator = 0;
+
 // Constants
 const GROUND_SIZE = 40;
 const NUM_OBJECTS = 50; // Number of random city objects
@@ -49,7 +52,10 @@ world = new World({
   gravity: new Vec3(0, -9.82, 0)
 });
 world.broadphase = new NaiveBroadphase();
-world.solver.iterations = 10;
+// Setting solver iterations if solver is defined (cannon-es usually provides a default solver)
+if (world.solver) {
+  world.solver.iterations = 10;
+}
 
 // --- Lights ---
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -284,8 +290,13 @@ const clock = new THREE.Clock();
 function animate() {
   const deltaTime = clock.getDelta();
   
-  // Step the physics simulation
-  world.step(1 / 60, deltaTime, 3);
+  // Use fixed time step integration to avoid errors in cannon-es step
+  const fixedTimeStep = 1 / 60;
+  accumulator += deltaTime;
+  while (accumulator >= fixedTimeStep) {
+    world.step(fixedTimeStep);
+    accumulator -= fixedTimeStep;
+  }
   
   // Sync meshes with their corresponding physics bodies for city objects
   objectsToUpdate.forEach(obj => {
